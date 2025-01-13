@@ -181,7 +181,7 @@ echo -e "======================================\033[0m"
 # - Não editar: Não altere a lógica de uso das variáveis, apenas seus valores.
 # ###########################################
 BASE_DIR="/home/container" # Diretório base onde os ambientes serão criados.
-NUM_AMBIENTES=4            # Número de ambientes que serão configurados.
+NUM_AMBIENTES=5            # Número de ambientes que serão configurados.
 TERMS_FILE="${BASE_DIR}/termos_accepted.txt" # Caminho do arquivo que indica a aceitação dos termos de serviço.
 
 # ###########################################
