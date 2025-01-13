@@ -180,7 +180,7 @@ echo -e "======================================\033[0m"
 # - No editar: Las definiciones de colores ANSI deben permanecer intactas.
 # ###########################################
 BASE_DIR="/home/container"
-NUM_AMBIENTES=4
+NUM_AMBIENTES=5
 TERMS_FILE="${BASE_DIR}/termos_accepted.txt"
 
 # Colores ANSI
