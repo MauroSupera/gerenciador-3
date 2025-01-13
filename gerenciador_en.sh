@@ -171,7 +171,7 @@ echo -e "======================================\033[0m"
 # - TERMS_FILE: File used to store the acceptance of terms. Edit if necessary.
 # ###########################################
 BASE_DIR="/home/container"
-NUM_AMBIENTES=4
+NUM_AMBIENTES=5
 TERMS_FILE="${BASE_DIR}/termos_accepted.txt"
 
 # ###########################################
