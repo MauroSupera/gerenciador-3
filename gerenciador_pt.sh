@@ -5,64 +5,167 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'  # Sem cor
 
-# === CONFIGURAÇÕES ===
-# Configuração da API esperada. Esta é a chave utilizada para validar a conexão com o gerenciador principal.
-API_ESPERADA="VORTEXUSCLOUD"
+# === ÍCONES UNICODE ===
+CHECK_MARK='✅'
+CROSS_MARK='❌'
+WARNING='⚠️'
+INFO='ℹ️'
+ARROW='➡️'
 
-# === FUNÇÃO PARA VALIDAR A API ===
-# Esta função verifica se a API fornecida pelo gerenciador principal corresponde à chave esperada.
-# Se não corresponder, o script exibe uma mensagem de erro e encerra.
-# O usuário não deve alterar esta função, a menos que entenda o funcionamento do sistema de validação.
+# === CONFIGURAÇÕES ===
+API_ESPERADA="VORTEXUSCLOUD"
+WHITELIST_HOSTNAMES=("app.vexufy.com")
+WHITELIST_IPS=("199.85.209.85" "199.85.209.109")
+VALIDATED=false
+# === CONFIGURAÇÕES DE VERSÃO ===
+VERSAO_LOCAL="1.0.1"  # Versão atual do script
+URL_SCRIPT="https://raw.githubusercontent.com/MauroSupera/gerenciador-updater/main/gerenciador_pt.sh"  # Link para o conteúdo do script no GitHub
+
+# Obtém o nome do script atual (ex.: gerenciador.sh)
+SCRIPT_NOME=$(basename "$0")
+SCRIPT_PATH="${BASE_DIR}/${SCRIPT_NOME}"  # Caminho completo do script
+
+# ###########################################
+# Função para verificar atualizações automáticas
+# - Propósito: Verifica se há uma nova versão do script disponível.
+# ###########################################
+verificar_atualizacoes() {
+    echo -e "${CYAN}======================================${NC}"
+    echo -e "       VERIFICANDO ATUALIZAÇÕES"
+    echo -e "${CYAN}======================================${NC}"
+
+    # Obtém o conteúdo remoto do GitHub
+    CONTEUDO_REMOTO=$(curl -s --max-time 5 "$URL_SCRIPT")
+    if [ -z "$CONTEUDO_REMOTO" ]; then
+        echo -e "${YELLOW}Não foi possível verificar atualizações. Tente novamente mais tarde.${NC}"
+        return
+    fi
+
+    # Extrai a versão remota do conteúdo
+    VERSAO_REMOTA=$(echo "$CONTEUDO_REMOTO" | grep -oP 'VERSAO_LOCAL="\K[0-9]+\.[0-9]+\.[0-9]+')
+    if [ -z "$VERSAO_REMOTA" ]; then
+        echo -e "${YELLOW}Não foi possível extrair a versão do arquivo remoto.${NC}"
+        return
+    fi
+
+    echo -e "${CYAN}Versão Atual: ${GREEN}${VERSAO_LOCAL}${NC}"
+    echo -e "${CYAN}Versão Disponível: ${GREEN}${VERSAO_REMOTA}${NC}"
+
+    # Compara as versões
+    if [ "$VERSAO_REMOTA" = "$VERSAO_LOCAL" ]; then
+        echo -e "${GREEN}Você está usando a versão mais recente do nosso script.${NC}"
+    elif [[ "$VERSAO_REMOTA" > "$VERSAO_LOCAL" ]]; then
+        echo -e "${YELLOW}Nova atualização disponível! (${VERSAO_REMOTA})${NC}"
+        echo -e "${YELLOW}Instalando atualização automaticamente...${NC}"
+        aplicar_atualizacao_automatica
+    else
+        echo -e "${RED}Erro ao atualizar: A versão disponível (${VERSAO_REMOTA}) é menor que a versão atual (${VERSAO_LOCAL}).${NC}"
+    fi
+}
+# ###########################################
+# Função para aplicar atualizações automáticas
+# - Propósito: Baixa a nova versão do script e substitui o atual.
+# ###########################################
+aplicar_atualizacao_automatica() {
+    echo -e "${CYAN}Baixando a nova versão do script...${NC}"
+    curl -s -o "${BASE_DIR}/script_atualizado.sh" "$URL_SCRIPT"
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Erro ao baixar a nova versão do script.${NC}"
+        menu_principal
+        return
+    fi
+
+    echo -e "${CYAN}Substituindo o script atual...${NC}"
+    mv "${BASE_DIR}/script_atualizado.sh" "${BASE_DIR}/$SCRIPT_PATH"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Atualização aplicada com sucesso! Reiniciando o servidor...${NC}"
+        sleep 2
+        exec "$SCRIPT_PATH"
+    else
+        echo -e "${RED}Erro ao aplicar a atualização.${NC}"
+    fi
+}
+
+
+# ###########################################
+# Função para aplicar atualizações manuais
+# - Propósito: Baixa a nova versão do script e substitui o atual.
+# ###########################################
+aplicar_atualizacao_manual() {
+    echo -e "${CYAN}Verificando atualizações manuais...${NC}"
+
+    # Obtém o conteúdo remoto do GitHub
+    CONTEUDO_REMOTO=$(curl -s --max-time 5 "$URL_SCRIPT")
+    if [ -z "$CONTEUDO_REMOTO" ]; then
+        echo -e "${YELLOW}Não foi possível verificar atualizações. Tente novamente mais tarde.${NC}"
+        return
+    fi
+
+    # Extrai a versão remota do conteúdo
+    VERSAO_REMOTA=$(echo "$CONTEUDO_REMOTO" | grep -oP 'VERSAO_LOCAL="\K[0-9]+\.[0-9]+\.[0-9]+')
+    if [ -z "$VERSAO_REMOTA" ]; then
+        echo -e "${YELLOW}Não foi possível extrair a versão do arquivo remoto.${NC}"
+        return
+    fi
+
+    echo -e "${CYAN}Versão Atual: ${GREEN}${VERSAO_LOCAL}${NC}"
+    echo -e "${CYAN}Versão Disponível: ${GREEN}${VERSAO_REMOTA}${NC}"
+
+    # Compara as versões
+    if [ "$VERSAO_REMOTA" = "$VERSAO_LOCAL" ]; then
+        echo -e "${GREEN}Você já está usando a versão mais recente do nosso script.${NC}"
+        menu_principal
+    elif [[ "$VERSAO_REMOTA" > "$VERSAO_LOCAL" ]]; then
+        echo -e "${YELLOW}Nova atualização disponível! (${VERSAO_REMOTA})${NC}"
+        echo -e "${YELLOW}Aplicando atualização manualmente...${NC}"
+        aplicar_atualizacao_automatica
+ else
+        echo -e "${RED}Erro ao atualizar: A versão disponível (${VERSAO_REMOTA}) é menor que a versão atual (${VERSAO_LOCAL}).${NC}"
+        menu_principal
+    fi
+}
+
+
+# === CABEÇALHO DINÂMICO ===
+cabecalho() {
+    clear
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${BOLD}${CYAN}          GERENCIADOR DE SISTEMAS           ${NC}"
+    echo -e "${CYAN}==============================================${NC}"
+}
+
+# === VALIDAÇÃO DA API ===
 validar_api() {
     API_RECEBIDA=$1
     if [ "$API_RECEBIDA" != "$API_ESPERADA" ]; then
-        echo -e "${RED}API NÃO CONSEGUE SE CONECTAR AO ARQUIVO GERENCIADOR.SH.${NC}"
-        echo -e "${YELLOW}POR FAVOR, FORNEÇA O ARQUIVO DE CONFIGURAÇÃO PARA CONSEGUIR EXECUTAR ESTE ARQUIVO.${NC}"
-        echo -e "${YELLOW}CASO NÃO SAIBA, ENTRE EM CONTATO COM NOSSO SUPORTE:${NC}"
-        echo -e "${CYAN}HTTPS://VORTEXCLOUD.COM.BR${NC}"
+        cabecalho
+        echo -e "${RED}${CROSS_MARK} ERRO: API NÃO AUTORIZADA.${NC}"
+        echo -e "${YELLOW}${WARNING} Por favor, forneça o arquivo de configuração correto.${NC}"
+        echo -e "${YELLOW}${INFO} Entre em contato com nosso suporte: ${CYAN}https://vortexuscloud.com.br${NC}"
         exit 1
     fi
 }
 
 # === INICIALIZAÇÃO DO GERENCIADOR ===
-# Valida a API fornecida e, se correta, inicia os sistemas. O usuário pode adicionar
-# comandos personalizados após a validação, se necessário.
-echo -e "${CYAN}==============================================${NC}"
-echo -e "${YELLOW}VALIDANDO API...${NC}"
-validar_api "$1"
-echo -e "${GREEN}A API CONECTOU-SE COM SUCESSO! SISTEMAS VALIDADOS.${NC}"
-echo -e "${CYAN}==============================================${NC}"
+inicializar_gerenciador() {
+    cabecalho
+    echo -e "${YELLOW}${INFO} Validando API...${NC}"
+    validar_api "$1"
+    echo -e "${GREEN}${CHECK_MARK} API validada com sucesso!${NC}"
+    sleep 2
+}
 
-# === ABAIXO COMECA A EXECUTAR O SCRIPT MAS PRIMEIRO VERIFICA OS HOSTNAMES E IPS ===
-
-
-# ###########################################
-# Configurações da whitelist
-# - Propósito: Define os hostnames e IPs autorizados para o sistema.
-# - Editar: 
-#   * Você pode adicionar ou remover hostnames em `WHITELIST_HOSTNAMES`.
-#   * Pode incluir ou excluir IPs em `WHITELIST_IPS`.
-# - Não editar: A estrutura da lista e a lógica de validação devem permanecer intactas.
-# ###########################################
-WHITELIST_HOSTNAMES=("app.vexufy.com")
-WHITELIST_IPS=("199.85.209.85" "199.85.209.109")                 # Adicione os IPs autorizados.
-VALIDATED=false  # Flag para indicar se o ambiente foi validado com sucesso.
-
-# ###########################################
-# Função para obter IPs privados e públicos
-# - Propósito: Coleta os IPs privados e públicos do servidor em execução.
-# - Editar: Não é necessário editar esta função, pois ela é independente de configurações externas.
-# ###########################################
+# === FUNÇÃO PARA OBTER IPS ===
 obter_ips() {
-    # Obtém o IP privado
     IP_PRIVADO=$(hostname -I | awk '{print $1}')
-    
-    # Obtém o IP público usando diferentes serviços online
     IP_PUBLICO=""
     SERVICOS=("ifconfig.me" "api64.ipify.org" "ipecho.net/plain")
-    
+
     for SERVICO in "${SERVICOS[@]}"; do
         IP_PUBLICO=$(curl -s --max-time 5 "http://${SERVICO}")
         if [[ $IP_PUBLICO =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -70,7 +173,6 @@ obter_ips() {
         fi
     done
 
-    # Caso não consiga obter o IP público
     if [ -z "$IP_PUBLICO" ]; then
         IP_PUBLICO="Não foi possível obter o IP público"
     fi
@@ -78,99 +180,98 @@ obter_ips() {
     echo "$IP_PRIVADO" "$IP_PUBLICO"
 }
 
-# ###########################################
-# Função para validar o ambiente
-# - Propósito: Confirma se o ambiente atual está autorizado a executar o sistema.
-# - Editar:
-#   * Você pode ajustar as mensagens exibidas no terminal (os comandos `echo`).
-# - Não editar: Não altere a lógica de verificação ou o comportamento do loop.
-# ###########################################
+# === VALIDAÇÃO DO AMBIENTE ===
 validar_ambiente() {
-    # Exibe uma mensagem de validação inicial
-    echo -e "\033[1;36m======================================"
-    echo -e "       VALIDANDO AMBIENTE..."
-    echo -e "======================================\033[0m"
-    sleep 2  # Simula o tempo de validação
+    # Verifica se o arquivo firewall.json existe e contém "skip"
+    if [ -f "firewall.json" ]; then
+        STATUS=$(jq -r '.status' firewall.json 2>/dev/null)
+        if [ "$STATUS" = "skip" ]; then
+            # Se o status for "skip", pula as verificações visuais
+            cabecalho
+            echo -e "${CYAN}${INFO} Ambiente já validado anteriormente. Pulando verificações visuais...${NC}"
+            sleep 2
 
-    # Coleta os IPs público e privado
-    read -r IP_PRIVADO IP_PUBLICO <<<"$(obter_ips)"
+            # Realiza as verificações em segundo plano
+            validar_em_segundo_plano &
+            return 0
+        fi
+    fi
 
-    # Resolve os IPs dos hostnames na whitelist
+    # Realiza as verificações normais
+    cabecalho
+    echo -e "${CYAN}${INFO} Validando ambiente...${NC}"
+    sleep 2
+    read -r IP_PRIVADO IP_PUBLICO <<< "$(obter_ips)"
     for HOSTNAME in "${WHITELIST_HOSTNAMES[@]}"; do
         RESOLVIDOS=$(getent ahosts "$HOSTNAME" | awk '{print $1}' | sort -u)
         WHITELIST_IPS+=($RESOLVIDOS)
     done
 
-    # Mostra as informações coletadas
-    echo -e "\033[1;33mHostname atual: $(hostname)"
-    echo -e "IP privado atual: $IP_PRIVADO"
-    echo -e "IP público atual: $IP_PUBLICO"
-    echo -e "======================================\033[0m"
-    sleep 3  # Dá tempo para o usuário ver as informações
+    cabecalho
+    echo -e "${YELLOW}${INFO} Informações do ambiente:${NC}"
+    echo -e "${CYAN}${ARROW} Hostname atual: $(hostname)${NC}"
+    echo -e "${CYAN}${ARROW} IP privado: $IP_PRIVADO${NC}"
+    echo -e "${CYAN}${ARROW} IP público: $IP_PUBLICO${NC}"
+    echo -e "${CYAN}----------------------------------------------${NC}"
+    sleep 3
 
-    # Verifica se o IP privado ou público está autorizado
     if [[ " ${WHITELIST_IPS[@]} " =~ " ${IP_PRIVADO} " ]] || [[ " ${WHITELIST_IPS[@]} " =~ " ${IP_PUBLICO} " ]]; then
-        echo -e "\033[1;32m✔ Ambiente validado com sucesso! Continuando...\033[0m"
+        echo -e "${GREEN}${CHECK_MARK} Ambiente autorizado! Continuando...${NC}"
         VALIDATED=true
+
+        # Cria o arquivo firewall.json com status "skip"
+        echo '{"status": "skip"}' > firewall.json
         return 0
     fi
 
-    # Loop para ambientes não autorizados
     while true; do
-        clear
-        echo -e "\033[1;31m======================================"
-        echo -e "❌ ERRO: AMBIENTE NÃO AUTORIZADO"
-        echo -e "--------------------------------------"
-        echo -e "⚠️  Este sistema não é licenciado para uso externo."
-        echo -e "⚠️  É estritamente proibido utilizar este sistema fora dos servidores autorizados."
-        echo -e "--------------------------------------"
-        echo -e "➡️  Hostname atual: $(hostname)"
-        echo -e "➡️  IP privado atual: $IP_PRIVADO"
-        echo -e "➡️  IP público atual: $IP_PUBLICO"
-        echo -e "--------------------------------------"
-        echo -e "✅ Servidores autorizados: ${WHITELIST_HOSTNAMES[*]}"
-        echo -e "✅ IPs autorizados: ${WHITELIST_IPS[*]}"
-        echo -e "--------------------------------------"
-        echo -e "💡 Para adquirir uma licença ou contratar nossos serviços de hospedagem:"
-        echo -e "   🌐 Acesse clicando aqui: \033[1;34mhttps://vortexuscloud.com.br\033[0m"
-        echo -e "======================================\033[0m"
+        cabecalho
+        echo -e "${RED}${CROSS_MARK} ERRO: AMBIENTE NÃO AUTORIZADO${NC}"
+        echo -e "${YELLOW}${WARNING} Este sistema só pode ser executado em servidores autorizados.${NC}"
+        echo -e "${CYAN}${ARROW} Hostname atual: $(hostname)${NC}"
+        echo -e "${CYAN}${ARROW} IP privado: $IP_PRIVADO${NC}"
+        echo -e "${CYAN}${ARROW} IP público: $IP_PUBLICO${NC}"
+        echo -e "${CYAN}----------------------------------------------${NC}"
+        echo -e "${YELLOW}${INFO} Servidores autorizados: ${WHITELIST_HOSTNAMES[*]}${NC}"
+        echo -e "${YELLOW}${INFO} IPs autorizados: ${WHITELIST_IPS[*]}${NC}"
+        echo -e "${CYAN}----------------------------------------------${NC}"
+        echo -e "${YELLOW}${INFO} Para adquirir uma licença ou contratar nossos serviços:${NC}"
+        echo -e "${CYAN}${ARROW} Acesse: https://vortexuscloud.com.br${NC}"
         sleep 10
     done
 }
+# === VALIDAÇÃO EM SEGUNDO PLANO ===
+validar_em_segundo_plano() {
+    # Obtém os IPs privado e público
+    read -r IP_PRIVADO IP_PUBLICO <<< "$(obter_ips)"
 
-# ###########################################
-# Função de validação secundária
-# - Propósito: Realiza uma validação adicional para confirmar o ambiente autorizado.
-# - Editar: Não é necessário editar esta função.
-# ###########################################
-validar_secundario() {
-    echo -e "\033[1;36mRevalidando ambiente...\033[0m"
-    sleep 2
-    validar_ambiente
+    # Resolve os hostnames da whitelist
+    for HOSTNAME in "${WHITELIST_HOSTNAMES[@]}"; do
+        RESOLVIDOS=$(getent ahosts "$HOSTNAME" | awk '{print $1}' | sort -u)
+        WHITELIST_IPS+=($RESOLVIDOS)
+    done
+
+    # Verifica se o IP privado ou público está na whitelist
+    if [[ ! " ${WHITELIST_IPS[@]} " =~ " ${IP_PRIVADO} " ]] && [[ ! " ${WHITELIST_IPS[@]} " =~ " ${IP_PUBLICO} " ]]; then
+        # Se o ambiente não estiver autorizado, registra um erro no log
+        echo "ERRO: Ambiente não autorizado. IP Privado: $IP_PRIVADO, IP Público: $IP_PUBLICO" >> validacao.log
+    fi
 }
+# === INÍCIO DO SCRIPT ===
+inicializar_gerenciador "$1"
 
-# ###########################################
-# Verificação inicial da whitelist
-# - Propósito: Realiza a validação antes de iniciar qualquer operação.
-# - Editar: Não é necessário editar esta função.
-# ###########################################
 if [ "$VALIDATED" = false ]; then
     validar_ambiente
 fi
 
-# ###########################################
-# Início do script principal
-# - Propósito: Exibe uma mensagem inicial após a validação bem-sucedida.
-# - Editar: Pode ajustar o texto exibido pelo comando `echo`.
-# ###########################################
-echo -e "\033[1;36mBem-vindo ao sistema autorizado! Preparando validações subsequentes...\033[0m"
+cabecalho
+echo -e "${GREEN}${CHECK_MARK} Bem-vindo ao sistema autorizado!${NC}"
+echo -e "${CYAN}${INFO} Preparando validações subsequentes...${NC}"
 sleep 5
-validar_secundario
 
-echo -e "\033[1;32m======================================"
-echo -e "    Sistema autorizado e operacional!"
-echo -e "======================================\033[0m"
-
+cabecalho
+echo -e "${GREEN}${CHECK_MARK} Sistema autorizado e operacional!${NC}"
+echo -e "${CYAN}==============================================${NC}"
 # ###########################################
 # Configurações principais
 # - Propósito: Define o diretório base e outras configurações essenciais do sistema.
@@ -180,51 +281,56 @@ echo -e "======================================\033[0m"
 #   * `TERMS_FILE`: Altere o caminho do arquivo de termos, se necessário.
 # - Não editar: Não altere a lógica de uso das variáveis, apenas seus valores.
 # ###########################################
-BASE_DIR="/home/container" # Diretório base onde os ambientes serão criados.
-NUM_AMBIENTES=5            # Número de ambientes que serão configurados.
-TERMS_FILE="${BASE_DIR}/termos_accepted.txt" # Caminho do arquivo que indica a aceitação dos termos de serviço.
+#!/bin/bash
 
-# ###########################################
-# Cores ANSI
-# - Propósito: Define cores para saída no terminal.
-# - Editar: Não é necessário editar a configuração das cores.
-# ###########################################
+# === CORES ANSI ===
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
-NC='\033[0m' # Sem cor
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'  # Sem cor
 
-# ###########################################
-# Função de animação
-# - Propósito: Exibe um texto animado no terminal.
-# - Editar: Você pode alterar o texto passado para a função quando utilizá-la.
-# - Não editar: Não é necessário alterar a lógica da animação.
-# ###########################################
-anima_texto() {
-    local texto="$1"
-    local delay=0.1
-    for (( i=0; i<${#texto}; i++ )); do
-        printf "${YELLOW}${texto:$i:1}${NC}"
-        sleep "$delay"
-    done
-    echo ""
+# === ÍCONES UNICODE ===
+CHECK_MARK='✅'
+CROSS_MARK='❌'
+WARNING='⚠️'
+INFO='ℹ️'
+ARROW='➡️'
+
+# === CONFIGURAÇÕES PRINCIPAIS ===
+BASE_DIR="/home/container"  # Diretório base onde os ambientes serão criados.
+NUM_AMBIENTES=5 # Número de ambientes que serão configurados.
+TERMS_FILE="${BASE_DIR}/termos_accepted.txt"  # Caminho do arquivo que indica a aceitação dos termos.
+
+# === CABEÇALHO DINÂMICO ===
+cabecalho() {
+    clear
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${BOLD}${CYAN}          GERENCIADOR DE SISTEMAS           ${NC}"
+    echo -e "${CYAN}==============================================${NC}"
 }
 
-# ###########################################
-# Função para exibir o outdoor 3D com texto estático
-# - Propósito: Exibe um cabeçalho em formato de arte ASCII.
-# - Editar:
-#   * Você pode personalizar o texto ASCII e as informações exibidas abaixo.
-#   * Altere os links ou mensagens para adequar ao seu projeto.
-# - Não editar: A lógica para centralizar o texto e exibir a animação.
-# ###########################################
+# === ANIMAÇÃO DE TEXTO ===
+anima_texto() {
+    local texto="$1"
+    for ((i = 0; i < ${#texto}; i++)); do
+        echo -n "${YELLOW}${texto:i:1}${NC}"
+        sleep 0.02
+    done
+    echo
+}
+
+# === EXIBIR OUTDOOR 3D ===
 exibir_outdoor_3D() {
-    clear
+    cabecalho
+    echo -e "${CYAN}${INFO} Inicializando sistema...${NC}"
+    sleep 1
+
     local width=$(tput cols)  # Largura do terminal
     local height=$(tput lines)  # Altura do terminal
-    local start_line=$(( height / 3 ))
+    local start_line=$((height / 3))
     local start_col=$(( (width - 60) / 2 ))  # Centraliza o texto
 
     # Arte 3D do texto principal
@@ -243,95 +349,95 @@ exibir_outdoor_3D() {
         echo -e "${CYAN}${outdoor_text[i]}${NC}"
     done
 
-    # Exibe "Created by Mauro Gashfix" diretamente abaixo do texto 3D
-    local footer="Created by Mauro Gashfix"
+    # Exibe informações adicionais
+    local footer="Script Construído por Mauro Gashfix"
     tput cup $((start_line + ${#outdoor_text[@]} + 1)) $(( (width - ${#footer}) / 2 ))
     echo -e "${YELLOW}${footer}${NC}"
 
-    # Exibe os links diretamente abaixo do footer
     local links="vortexuscloud.com.br & vortexuscloud.com"
     tput cup $((start_line + ${#outdoor_text[@]} + 2)) $(( (width - ${#links}) / 2 ))
     echo -e "${GREEN}${links}${NC}"
 
-    # Exibe a barra de inicialização diretamente abaixo dos links
-    local progress_bar="Inicializando..."
-    tput cup $((start_line + ${#outdoor_text[@]} + 4)) $(( (width - ${#progress_bar} - 20) / 2 ))
-    echo -ne "${CYAN}${progress_bar}${NC}"
-    for i in $(seq 1 20); do
-        echo -ne "${GREEN}#${NC}"
-        sleep 0.1
+spinner() {
+    local pid=$1  # ID do processo em segundo plano
+    local delay=0.1
+    local spin='-\|/'  # Caracteres do spinner
+    local char_width=1
+
+    while kill -0 $pid 2>/dev/null; do
+        for i in $(seq 0 3); do
+            printf "\r[${spin:$i:1}] ${CYAN}Carregando...${NC}"
+            sleep $delay
+        done
     done
-    echo ""
+
+    printf "\r${GREEN}[✔] Concluído!${NC}       \n"
 }
 
-# ###########################################
-# Função para exibir os termos de serviço
-# - Propósito: Solicita que o usuário aceite os termos antes de continuar.
-# - Editar:
-#   * Personalize as mensagens de termos de serviço exibidas ao usuário.
-#   * Altere o texto "ACEITA OS TERMOS?" para refletir as políticas do seu projeto.
-# - Não editar: A lógica de verificação e armazenamento do aceite.
-# ###########################################
+# Exemplo de uso
+long_running_task() {
+    sleep 5  # Simula uma tarefa longa
+}
+
+echo -e "${CYAN}Iniciando sistema...${NC}"
+long_running_task &
+spinner $!
+}
+
+# === EXIBIR TERMOS DE SERVIÇO ===
 exibir_termos() {
     exibir_outdoor_3D
     sleep 1
-    echo -e "${BLUE}Este sistema é permitido apenas na plataforma Vortexus Cloud.${NC}"
-    echo -e "${CYAN}======================================${NC}"
+
+    echo -e "${BLUE}${INFO} Este sistema é permitido apenas na plataforma Vortexus Cloud.${NC}"
+    echo -e "${CYAN}==============================================${NC}"
 
     if [ ! -f "$TERMS_FILE" ]; then
         while true; do
-            echo -e "${YELLOW}VOCÊ ACEITA OS TERMOS DE SERVIÇO? (SIM/NÃO)${NC}"
+            echo -e "${YELLOW}${WARNING} VOCÊ ACEITA OS TERMOS DE SERVIÇO? (SIM/NÃO)${NC}"
             read -p "> " ACEITE
             if [ "$ACEITE" = "sim" ]; then
-                echo -e "${GREEN}Termos aceitos em $(date).${NC}" > "$TERMS_FILE"
-                echo -e "${CYAN}======================================${NC}"
-                echo -e "${GREEN}TERMOS ACEITOS. PROSSEGUINDO...${NC}"
+                echo -e "${GREEN}${CHECK_MARK} Termos aceitos em $(date).${NC}" > "$TERMS_FILE"
+                echo -e "${CYAN}==============================================${NC}"
+                echo -e "${GREEN}${CHECK_MARK} TERMOS ACEITOS. PROSSEGUINDO...${NC}"
                 break
             elif [ "$ACEITE" = "não" ]; then
-                echo -e "${RED}VOCÊ DEVE ACEITAR OS TERMOS PARA CONTINUAR.${NC}"
+                echo -e "${RED}${CROSS_MARK} VOCÊ DEVE ACEITAR OS TERMOS PARA CONTINUAR.${NC}"
             else
-                echo -e "${RED}OPÇÃO INVÁLIDA. DIGITE 'SIM' OU 'NÃO'.${NC}"
+                echo -e "${RED}${CROSS_MARK} OPÇÃO INVÁLIDA. DIGITE 'SIM' OU 'NÃO'.${NC}"
             fi
         done
     else
-        echo -e "${GREEN}TERMOS JÁ ACEITOS ANTERIORMENTE. PROSSEGUINDO...${NC}"
+        echo -e "${GREEN}${CHECK_MARK} TERMOS JÁ ACEITOS ANTERIORMENTE. PROSSEGUINDO...${NC}"
     fi
 }
 
-# ###########################################
-# Função para criar pastas dos ambientes
-# - Propósito: Cria as pastas necessárias para cada ambiente configurado.
-# - Editar:
-#   * Altere o número de ambientes em `NUM_AMBIENTES` se desejar criar mais ou menos pastas.
-# - Não editar: A lógica de criação de pastas.
-# ###########################################
+# === CRIAR PASTAS DOS AMBIENTES ===
 criar_pastas() {
+    cabecalho
+    echo -e "${CYAN}${INFO} Criando pastas dos ambientes...${NC}"
+    sleep 1
+
     for i in $(seq 1 $NUM_AMBIENTES); do
         AMBIENTE_PATH="${BASE_DIR}/ambiente${i}"
         if [ ! -d "$AMBIENTE_PATH" ]; then
             mkdir -p "$AMBIENTE_PATH"
-            echo -e "${GREEN}PASTA DO AMBIENTE ${i} CRIADA.${NC}"
+            echo -e "${GREEN}${CHECK_MARK} Pasta do ambiente ${i} criada.${NC}"
+        else
+            echo -e "${YELLOW}${INFO} Pasta do ambiente ${i} já existe.${NC}"
         fi
     done
 }
 
-# ###########################################
-# Atualizar status do ambiente
-# - Propósito: Atualiza o status de um ambiente específico.
-# - Editar: Não é necessário editar esta função.
-# ###########################################
+# === ATUALIZAR STATUS DO AMBIENTE ===
 atualizar_status() {
     AMBIENTE_PATH=$1
     NOVO_STATUS=$2
     echo "$NOVO_STATUS" > "${AMBIENTE_PATH}/status"
-    echo -e "${CYAN}Status do ambiente atualizado para: ${GREEN}${NOVO_STATUS}${NC}"
+    echo -e "${CYAN}${INFO} Status do ambiente atualizado para: ${GREEN}${NOVO_STATUS}${NC}"
 }
 
-# ###########################################
-# Recuperar status do ambiente
-# - Propósito: Obtém o status atual de um ambiente específico.
-# - Editar: Não é necessário editar esta função.
-# ###########################################
+# === RECUPERAR STATUS DO AMBIENTE ===
 recuperar_status() {
     AMBIENTE_PATH=$1
     if [ -f "${AMBIENTE_PATH}/status" ]; then
@@ -341,103 +447,176 @@ recuperar_status() {
     fi
 }
 
-# ###########################################
-# Função para verificar e reiniciar sessões em background
-# - Propósito: Verifica se há sessões em execução nos ambientes e reinicia, se necessário.
-# - Editar: Não é necessário editar essa função. Somente ajuste as mensagens de texto para refletir o seu projeto.
-# - Não editar: A lógica de verificação de sessões e reinício.
-# ###########################################
-verificar_sessoes() {
-    echo -e "${CYAN}======================================${NC}"
-    anima_texto "VERIFICANDO SESSOES EM BACKGROUND..."
-    for i in $(seq 1 $NUM_AMBIENTES); do
-        AMBIENTE_PATH="${BASE_DIR}/ambiente${i}"
-        if [ -f "${AMBIENTE_PATH}/.session" ]; then
-            STATUS=$(recuperar_status "$AMBIENTE_PATH")
-            if [ "$STATUS" = "ON" ]; then
-                COMANDO=$(cat "${AMBIENTE_PATH}/.session")
-                
-                if [ -n "$COMANDO" ]; then
-                    echo -e "${YELLOW}Executando sessão em background para o ambiente ${i}...${NC}"
-                    pkill -f "$COMANDO" 2>/dev/null
-                    cd "$AMBIENTE_PATH" || continue
-                    nohup $COMANDO > nohup.out 2>&1 &
-                    if [ $? -eq 0 ]; then
-                        echo -e "${GREEN}SESSÃO EM BACKGROUND ATIVA PARA O AMBIENTE ${i}.${NC}"
-                    else
-                        echo -e "${RED}Erro ao tentar ativar a sessão no ambiente ${i}.${NC}"
-                    fi
-                else
-                    echo -e "${YELLOW}Comando vazio encontrado no arquivo .session do ambiente ${i}.${NC}"
-                fi
-            else
-                echo -e "${RED}O ambiente ${i} está com status OFF. Ignorando...${NC}"
-            fi
-        else
-            echo -e "${RED}Nenhum arquivo .session encontrado no ambiente ${i}.${NC}"
-        fi
-    done
-    echo -e "${CYAN}======================================${NC}"
+# === CORES ANSI ===
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'  # Sem cor
+
+# === ÍCONES UNICODE ===
+CHECK_MARK='✅'
+CROSS_MARK='❌'
+WARNING='⚠️'
+INFO='ℹ️'
+ARROW='➡️'
+
+# === CABEÇALHO DINÂMICO ===
+cabecalho() {
+    clear
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${BOLD}${CYAN}          GERENCIADOR DE SISTEMAS           ${NC}"
+    echo -e "${CYAN}==============================================${NC}"
 }
 
-# ###########################################
-# Função para exibir o menu principal
-# - Propósito: Gerencia a navegação entre os ambientes configurados.
-# - Editar: Ajuste as mensagens e opções de texto conforme necessário.
-# - Não editar: A lógica de navegação e escolha de ambiente.
-# ###########################################
+# === ANIMAÇÃO DE TEXTO ===
+anima_texto() {
+    local texto="$1"
+    # Aplica a cor amarela ao texto inteiro antes da animação
+    echo -n "${YELLOW}"
+    for ((i = 0; i < ${#texto}; i++)); do
+        echo -n "${texto:i:1}"
+        sleep 0.02
+    done
+    # Reseta a cor após o texto
+    echo "${NC}"
+}
+
+# === VERIFICAR SESSÕES EM BACKGROUND ===
+verificar_sessoes() {
+    echo -e "${CYAN}======================================${NC}"
+    anima_texto "       VERIFICANDO SESSÕES EM BACKGROUND"
+    echo -e "${CYAN}======================================${NC}"
+
+    for i in $(seq 1 $NUM_AMBIENTES); do
+        AMBIENTE_PATH="${BASE_DIR}/ambiente${i}"
+
+        # Verifica se o arquivo .session existe
+        if [ -f "${AMBIENTE_PATH}/.session" ]; then
+            STATUS=$(recuperar_status "$AMBIENTE_PATH")
+
+            # Define o indicador visual de status (círculo colorido)
+            if [ "$STATUS" = "ON" ]; then
+                INDICADOR_STATUS="${GREEN}${CIRCLE_ON}${NC}"
+            else
+                INDICADOR_STATUS="${YELLOW}${CIRCLE_OFF}${NC}"
+            fi
+
+            # Exibe o status do ambiente
+            echo -e "${YELLOW}Verificando ambiente ${i}...${NC}"
+            echo -e "${CYAN}Status atual: ${INDICADOR_STATUS}${NC}"
+
+            # Verifica se o status é ON
+            if [ "$STATUS" = "ON" ]; then
+                COMANDO=$(cat "${AMBIENTE_PATH}/.session")
+                if [ -n "$COMANDO" ]; then
+                    echo -e "${YELLOW}Executando sessão em background para o ambiente ${i}...${NC}"
+
+                    # Mata qualquer processo residual
+                    pkill -f "$COMANDO" 2>/dev/null
+
+                    # Inicia o bot em segundo plano
+                    cd "$AMBIENTE_PATH" || continue
+                    nohup sh -c "$COMANDO" > "${AMBIENTE_PATH}/nohup.out" 2>&1 &
+                    if [ $? -eq 0 ]; then
+                        echo -e "${GREEN}[SUCESSO] Sessão em background ativada para o ambiente ${i}.${NC}"
+                    else
+                        echo -e "${RED}[ERRO] Não foi possível ativar a sessão no ambiente ${i}.${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}[AVISO] Comando vazio encontrado no arquivo .session do ambiente ${i}.${NC}"
+                fi
+            else
+                echo -e "${RED}[IGNORADO] O ambiente ${i} está com status OFF.${NC}"
+            fi
+        else
+            echo -e "${RED}[IGNORADO] Nenhum arquivo .session encontrado no ambiente ${i}.${NC}"
+        fi
+
+        echo -e "${CYAN}--------------------------------------${NC}"
+    done
+
+    echo -e "${CYAN}======================================${NC}"
+    anima_texto "       VERIFICAÇÃO CONCLUÍDA"
+    echo -e "${CYAN}======================================${NC}"
+}
+# === ÍCONES UNICODE ===
+CIRCLE_ON='◉'  # Círculo verde para ON
+CIRCLE_OFF='○' # Círculo vazio para OFF
+
+# === CABEÇALHO DINÂMICO ===
+cabecalho() {
+    clear
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${BOLD}${CYAN}          GERENCIADOR DE SISTEMAS           ${NC}"
+    echo -e "${CYAN}==============================================${NC}"
+}
+
+# === MENU PRINCIPAL ===
 menu_principal() {
-    echo -e "${CYAN}======================================${NC}"
-    anima_texto "       GERENCIAMENTO DE SISTEMAS"
-    echo -e "${CYAN}======================================${NC}"
-    
-    # Exibe os ambientes configurados
+    cabecalho
+
+    # Executa a verificação de sessões ao carregar o menu
+    verificar_sessoes
+
+    # Verifica automaticamente por atualizações
+    verificar_atualizacoes
+
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "       GERENCIAMENTO DE SISTEMAS"
+    echo -e "${CYAN}==============================================${NC}"
+
+    # Exibe os ambientes configurados dinamicamente
     for i in $(seq 1 $NUM_AMBIENTES); do
         AMBIENTE_PATH="${BASE_DIR}/ambiente${i}"
         STATUS=$(recuperar_status "$AMBIENTE_PATH")
-        echo -e "${YELLOW}AMBIENTE ${i}:${NC} ${GREEN}STATUS - $STATUS${NC}"
+        # Define o indicador visual de status (círculo colorido)
+        if [ "$STATUS" = "ON" ]; then
+            ICON="${GREEN}${CIRCLE_ON}${NC}"  # Círculo verde para ON
+        else
+            ICON="${YELLOW}${CIRCLE_OFF}${NC}"  # Círculo vazio para OFF
+        fi
+        echo -e "${YELLOW}AMBIENTE ${i} | STATUS: ${ICON}${NC}"
     done
-    
-    echo -e "${CYAN}======================================${NC}"
+
+    echo -e "${CYAN}==============================================${NC}"
     echo -e "${YELLOW}ESCOLHA UMA OPÇÃO:${NC}"
-    echo -e "${YELLOW}1-${NUM_AMBIENTES} - Gerenciar um Ambiente${NC}"  # Opções para os ambientes
-    echo -e "${YELLOW}A - Gerenciar API${NC}"                           # Nova opção para gerenciar a API
-    echo -e "${RED}0 - SAIR${NC}"                                 # Opção para sair
-    echo -e "${CYAN}======================================${NC}"
+    echo -e "${GREEN}1-${NUM_AMBIENTES}${NC} - ESCOLHA ENTRE 1-${NUM_AMBIENTES} PARA GERENCIAR UM AMBIENTE"
+    echo -e "${YELLOW}AM${NC} - ATUALIZAÇÃO MANUAL"
+    echo -e "${RED}0${NC} - REINICIAR CONTAINER"
+    echo -e "${CYAN}==============================================${NC}"
+
     read -p "> " OPCAO_PRINCIPAL
 
-    # Verifica a escolha do usuário
+    # Valida a escolha do usuário
     if [[ "$OPCAO_PRINCIPAL" =~ ^[0-9]+$ ]] && [ "$OPCAO_PRINCIPAL" -ge 1 ] && [ "$OPCAO_PRINCIPAL" -le "$NUM_AMBIENTES" ]; then
         # Gerenciar um ambiente específico
         gerenciar_ambiente "$OPCAO_PRINCIPAL"
-    elif [[ "$OPCAO_PRINCIPAL" == "A" || "$OPCAO_PRINCIPAL" == "a" ]]; then
-        # Gerenciar a API
-        menu_api
+    elif [[ "$OPCAO_PRINCIPAL" == "AM" || "$OPCAO_PRINCIPAL" == "am" ]]; then
+        # Atualização manual
+        aplicar_atualizacao_manual
     elif [[ "$OPCAO_PRINCIPAL" == "0" ]]; then
-        # Sair do sistema
-        anima_texto "SAINDO..."
+        # Reiniciar o container
+        echo -e "${GREEN}CONTAINER REINICIADO COM SUCESSO!${NC}"
         exit 0
     else
-        # Opção inválida
-        echo -e "${RED}ESCOLHA INVÁLIDA. TENTE NOVAMENTE.${NC}"
+        echo -e "${RED}${CROSS_MARK} ESCOLHA INVÁLIDA. TENTE NOVAMENTE.${NC}"
+        sleep 2
         menu_principal
     fi
 }
 
-# ###########################################
-# Função para escolher um bot pronto da Vortexus
-# - Propósito: Permite ao usuário selecionar uma lista de bots disponíveis.
-# - Editar: Adicione ou remova opções de idiomas disponíveis.
-# - Não editar: A lógica de escolha e navegação de menus.
-# ###########################################
+# === ESCOLHER BOT PRONTO ===
 escolher_bot_pronto() {
     AMBIENTE_PATH=$1
-    echo -e "${CYAN}======================================${NC}"
-    anima_texto "       ESCOLHER BOT PRONTO"
-    echo -e "${CYAN}======================================${NC}"
-    echo -e "${YELLOW}1 - BOTS EM PORTUGUÊS${NC}"
-    echo -e "${YELLOW}2 - BOTS EM ESPANHOL${NC}"
-    echo -e "${RED}0 - VOLTAR${NC}"
+    cabecalho
+    anima_texto "ESCOLHER BOT PRONTO"
+    echo -e "${CYAN}==============================================${NC}"
+    echo -e "${GREEN}1${NC} - BOTS EM PORTUGUÊS"
+    echo -e "${GREEN}2${NC} - BOTS EM ESPANHOL"
+    echo -e "${RED}0${NC} - VOLTAR"
+    echo -e "${CYAN}==============================================${NC}"
+
     read -p "> " OPCAO_BOT
 
     case $OPCAO_BOT in
@@ -451,30 +630,22 @@ escolher_bot_pronto() {
             menu_principal
             ;;
         *)
-            echo -e "${RED}Opção inválida.${NC}"
+            echo -e "${RED}${CROSS_MARK} OPÇÃO INVÁLIDA.${NC}"
+            sleep 2
             escolher_bot_pronto "$AMBIENTE_PATH"
             ;;
     esac
 }
 
-# ###########################################
-# Função para listar bots disponíveis
-# - Propósito: Lista os bots disponíveis de acordo com o idioma selecionado.
-# - Editar:
-#   * Para adicionar novos bots, insira uma nova linha na estrutura correspondente ao idioma:
-#     Exemplo para português:
-#       "NOME DO BOT - LINK DO REPOSITÓRIO"
-#   * Para adicionar novos idiomas, copie a estrutura `elif` e substitua o idioma e os bots.
-# - Não editar: A lógica de listagem e seleção de bots.
-# ###########################################
+# === LISTAR BOTS DISPONÍVEIS ===
 listar_bots() {
     AMBIENTE_PATH=$1
     LINGUA=$2
-    echo -e "${CYAN}======================================${NC}"
-    anima_texto "       BOTS DISPONÍVEIS - ${LINGUA^^}"
-    echo -e "${CYAN}======================================${NC}"
 
-    # Estrutura de bots disponíveis
+    cabecalho
+    anima_texto "BOTS DISPONÍVEIS - ${LINGUA^^}"
+    echo -e "${CYAN}==============================================${NC}"
+
     if [ "$LINGUA" = "portugues" ]; then
         BOTS=(
             "BLACK BOT - https://github.com/MauroSupera/blackbot.git"
@@ -499,20 +670,12 @@ listar_bots() {
         )
     fi
 
-    # Passo a passo para adicionar bots:
-    # 1. Para cada idioma, localize o bloco `if [ "$LINGUA" = "<idioma>" ];`.
-    # 2. Adicione uma nova linha no formato:
-    #    "NOME DO BOT - LINK DO REPOSITÓRIO"
-    # 3. Para adicionar um novo idioma:
-    #    a. Copie um dos blocos existentes (como o `elif [ "$LINGUA" = "espanhol" ];`).
-    #    b. Substitua `<idioma>` pelo novo idioma.
-    #    c. Adicione os bots correspondentes.
-    # 4. Certifique-se de manter o formato correto para que os bots sejam exibidos corretamente.
-
     for i in "${!BOTS[@]}"; do
-        echo -e "${GREEN}$((i+1)) - ${BOTS[$i]%% -*}${NC}"
+        echo -e "${GREEN}$((i+1))${NC} - ${BOTS[$i]%% -*}"
     done
-    echo -e "${RED}0 - VOLTAR${NC}"
+
+    echo -e "${RED}0${NC} - VOLTAR"
+    echo -e "${CYAN}==============================================${NC}"
 
     read -p "> " BOT_ESCOLHIDO
 
@@ -522,16 +685,15 @@ listar_bots() {
     elif [ "$BOT_ESCOLHIDO" = "0" ]; then
         escolher_bot_pronto "$AMBIENTE_PATH"
     else
-        echo -e "${RED}Opção inválida.${NC}"
+        echo -e "${RED}${CROSS_MARK} OPÇÃO INVÁLIDA.${NC}"
+        sleep 2
         listar_bots "$AMBIENTE_PATH" "$LINGUA"
     fi
 }
 
-
 # ###########################################
 # Função para verificar a instalação de um bot
 # - Propósito: Checa se já existe um bot instalado no ambiente. Se sim, oferece a opção de substituí-lo.
-# - Editar: Não é necessário editar a lógica. Somente ajuste as mensagens de texto, se necessário.
 # ###########################################
 verificar_instalacao_bot() {
     AMBIENTE_PATH=$1
@@ -542,17 +704,22 @@ verificar_instalacao_bot() {
         echo -e "${YELLOW}Deseja remover o bot existente para instalar o novo? (sim/não)${NC}"
         read -p "> " RESPOSTA
         if [ "$RESPOSTA" = "sim" ]; then
+            # Ativa a flag antes de chamar remover_bot
+            CHAMADA_VERIFICAR_INSTALACAO=true
             remover_bot "$AMBIENTE_PATH"
+            # Desativa a flag após a remoção
+            CHAMADA_VERIFICAR_INSTALACAO=false
+            # Instala o novo bot
             instalar_novo_bot "$AMBIENTE_PATH" "$REPOSITORIO"
         else
             echo -e "${RED}Retornando ao menu principal...${NC}"
             menu_principal
         fi
     else
+        # Se não há bot instalado, instala diretamente
         instalar_novo_bot "$AMBIENTE_PATH" "$REPOSITORIO"
     fi
 }
-
 # ###########################################
 # Função para instalar um novo bot
 # - Propósito: Clona o repositório do bot e verifica os módulos necessários para instalação.
@@ -561,8 +728,8 @@ verificar_instalacao_bot() {
 instalar_novo_bot() {
     AMBIENTE_PATH=$1
     REPOSITORIO=$2
-
     NOME_BOT=$(basename "$REPOSITORIO" .git)
+
     echo -e "${CYAN}Iniciando a instalação do bot: ${GREEN}$NOME_BOT${NC}..."
     git clone "$REPOSITORIO" "$AMBIENTE_PATH" 2>/dev/null
     if [ $? -eq 0 ]; then
@@ -570,6 +737,7 @@ instalar_novo_bot() {
         verificar_node_modules "$AMBIENTE_PATH"
     else
         echo -e "${RED}Erro ao clonar o repositório do bot $NOME_BOT. Verifique a URL e tente novamente.${NC}"
+        gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
     fi
 }
 
@@ -580,6 +748,7 @@ instalar_novo_bot() {
 # ###########################################
 verificar_node_modules() {
     AMBIENTE_PATH=$1
+
     if [ ! -d "${AMBIENTE_PATH}/node_modules" ]; then
         echo -e "${YELLOW}Módulos não instalados neste bot.${NC}"
         echo -e "${YELLOW}Escolha uma opção para instalação:${NC}"
@@ -587,19 +756,28 @@ verificar_node_modules() {
         echo -e "${GREEN}2 - yarn install${NC}"
         echo -e "${RED}0 - Voltar${NC}"
         read -p "> " OPCAO_MODULOS
+
         case $OPCAO_MODULOS in
             1)
                 echo -e "${CYAN}Instalando módulos com npm...${NC}"
                 cd "$AMBIENTE_PATH" && npm install
-                [ $? -eq 0 ] && echo -e "${GREEN}Módulos instalados com sucesso!${NC}" || echo -e "${RED}Erro ao instalar módulos com npm.${NC}"
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}Módulos instalados com sucesso!${NC}"
+                else
+                    echo -e "${RED}Erro ao instalar módulos com npm.${NC}"
+                fi
                 ;;
             2)
                 echo -e "${CYAN}Instalando módulos com yarn...${NC}"
                 cd "$AMBIENTE_PATH" && yarn install
-                [ $? -eq 0 ] && echo -e "${GREEN}Módulos instalados com sucesso!${NC}" || echo -e "${RED}Erro ao instalar módulos com yarn.${NC}"
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}Módulos instalados com sucesso!${NC}"
+                else
+                    echo -e "${RED}Erro ao instalar módulos com yarn.${NC}"
+                fi
                 ;;
             0)
-                menu_principal
+                gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
                 ;;
             *)
                 echo -e "${RED}Opção inválida.${NC}"
@@ -609,7 +787,9 @@ verificar_node_modules() {
     else
         echo -e "${GREEN}Todos os módulos necessários já estão instalados.${NC}"
     fi
-    pos_clone_menu "$AMBIENTE_PATH"
+
+    # Redireciona para o menu do ambiente após a instalação
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
 }
 
 # ###########################################
@@ -625,32 +805,50 @@ remover_bot() {
         echo -e "${RED}Deseja realmente remover o bot atual? (sim/não)${NC}"
         read -p "> " CONFIRMAR
         if [ "$CONFIRMAR" = "sim" ]; then
+            # Remove todos os arquivos do ambiente
             find "$AMBIENTE_PATH" -mindepth 1 -exec rm -rf {} + 2>/dev/null
-            [ -z "$(ls -A "$AMBIENTE_PATH")" ] && echo -e "${GREEN}Bot removido com sucesso.${NC}" || echo -e "${RED}Erro ao remover o bot.${NC}"
+            
+            # Verifica se o diretório está vazio após a remoção
+            if [ -z "$(ls -A "$AMBIENTE_PATH")" ]; then
+                echo -e "${GREEN}Bot removido com sucesso.${NC}"
+                gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+                
+                # Verifica se foi chamada por verificar_instalacao_bot
+                if [ "$CHAMADA_VERIFICAR_INSTALACAO" = false ]; then
+                    # Retorna ao menu do ambiente
+                    AMBIENTE_NUM=$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')
+                    gerenciar_ambiente "$AMBIENTE_NUM"
+                fi
+            else
+                echo -e "${RED}Erro ao remover o bot.${NC}"
+            fi
         else
             echo -e "${RED}Remoção cancelada.${NC}"
         fi
     else
         echo -e "${RED}Nenhum bot encontrado neste ambiente.${NC}"
     fi
-    menu_principal
-}
 
+    # Se não for chamada por verificar_instalacao_bot, retorna ao menu principal
+    if [ "$CHAMADA_VERIFICAR_INSTALACAO" = false ]; then
+        AMBIENTE_NUM=$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')
+        gerenciar_ambiente "$AMBIENTE_NUM"
+    fi
+}
 # ###########################################
 # Função para clonar repositório
 # - Propósito: Permite clonar repositórios públicos e privados no ambiente.
-# - Editar:
-#   * Ajuste as mensagens, se necessário.
-#   * Para tokens de acesso privado, mantenha as instruções para o usuário.
 # ###########################################
 clonar_repositorio() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
-    anima_texto "       CLONAR REPOSITÓRIO"
+    anima_texto "CLONAR REPOSITÓRIO"
     echo -e "${CYAN}======================================${NC}"
+
     echo -e "${YELLOW}1 - Clonar repositório público${NC}"
     echo -e "${YELLOW}2 - Clonar repositório privado${NC}"
-    echo -e "${RED}0 - Voltar${NC}"
+    echo -e "${RED}0 - Voltar ao menu do ambiente${NC}"
     read -p "> " OPCAO_CLONAR
 
     case $OPCAO_CLONAR in
@@ -658,52 +856,62 @@ clonar_repositorio() {
             echo -e "${CYAN}Forneça a URL do repositório público:${NC}"
             read -p "> " URL_REPOSITORIO
             if [[ $URL_REPOSITORIO != https://github.com/* ]]; then
-                echo -e "${RED}URL inválida!${NC}"
+                echo -e "${RED}URL inválida! Certifique-se de fornecer uma URL válida do GitHub.${NC}"
                 clonar_repositorio "$AMBIENTE_PATH"
                 return
             fi
             echo -e "${CYAN}Clonando repositório público...${NC}"
             git clone "$URL_REPOSITORIO" "$AMBIENTE_PATH" 2>/dev/null
-            [ $? -eq 0 ] && echo -e "${GREEN}Repositório clonado com sucesso!${NC}" || echo -e "${RED}Erro ao clonar o repositório.${NC}"
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ Repositório clonado com sucesso!${NC}"
+            else
+                echo -e "${RED}❌ Erro ao clonar o repositório. Verifique a URL e tente novamente.${NC}"
+            fi
             ;;
         2)
             echo -e "${CYAN}Forneça a URL do repositório privado:${NC}"
             read -p "> " URL_REPOSITORIO
             echo -e "${CYAN}Usuário do GitHub:${NC}"
             read -p "> " USERNAME
-            echo -e "${CYAN}Forneça o token de acesso:${NC}"
+            echo -e "${CYAN}Forneça o token de acesso (mantenha-o seguro):${NC}"
             read -s -p "> " TOKEN
             echo
             GIT_URL="https://${USERNAME}:${TOKEN}@$(echo $URL_REPOSITORIO | cut -d/ -f3-)"
             echo -e "${CYAN}Clonando repositório privado...${NC}"
             git clone "$GIT_URL" "$AMBIENTE_PATH" 2>/dev/null
-            [ $? -eq 0 ] && echo -e "${GREEN}Repositório privado clonado com sucesso!${NC}" || echo -e "${RED}Erro ao clonar o repositório privado.${NC}"
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ Repositório privado clonado com sucesso!${NC}"
+            else
+                echo -e "${RED}❌ Erro ao clonar o repositório privado. Verifique suas credenciais e tente novamente.${NC}"
+            fi
             ;;
         0)
-            menu_principal
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
             ;;
         *)
-            echo -e "${RED}Opção inválida.${NC}"
+            echo -e "${RED}❌ Opção inválida. Tente novamente.${NC}"
             clonar_repositorio "$AMBIENTE_PATH"
             ;;
     esac
+
+    # Redireciona ao menu do ambiente após a operação
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
 }
 
 # ###########################################
 # Função para o menu pós-clone
 # - Propósito: Permite que o usuário escolha o que fazer após clonar um repositório.
-# - Editar: 
-#   * Ajustar mensagens, se necessário.
-#   * Não é necessário alterar a lógica principal.
 # ###########################################
 pos_clone_menu() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
     anima_texto "O QUE VOCÊ DESEJA FAZER AGORA?"
     echo -e "${CYAN}======================================${NC}"
+
     echo -e "${YELLOW}1 - Executar o bot${NC}"
     echo -e "${YELLOW}2 - Instalar módulos${NC}"
-    echo -e "${RED}0 - Voltar para o menu principal${NC}"
+    echo -e "${RED}0 - Voltar ao menu do ambiente${NC}"
     read -p "> " OPCAO_POS_CLONE
 
     case $OPCAO_POS_CLONE in
@@ -714,10 +922,10 @@ pos_clone_menu() {
             instalar_modulos "$AMBIENTE_PATH"
             ;;
         0)
-            menu_principal
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
             ;;
         *)
-            echo -e "${RED}Opção inválida.${NC}"
+            echo -e "${RED}❌ Opção inválida. Tente novamente.${NC}"
             pos_clone_menu "$AMBIENTE_PATH"
             ;;
     esac
@@ -726,243 +934,295 @@ pos_clone_menu() {
 # ###########################################
 # Função para instalar módulos
 # - Propósito: Garante que as dependências necessárias para o bot sejam instaladas.
-# - Editar:
-#   * Ajustar mensagens, se necessário.
-#   * A lógica principal não requer alterações.
 # ###########################################
 instalar_modulos() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
     anima_texto "INSTALAR MÓDULOS"
     echo -e "${CYAN}======================================${NC}"
+
     echo -e "${YELLOW}1 - Instalar com npm install${NC}"
     echo -e "${YELLOW}2 - Instalar com yarn install${NC}"
-    echo -e "${RED}0 - Voltar para o menu principal${NC}"
+    echo -e "${RED}0 - Voltar ao menu do ambiente${NC}"
     read -p "> " OPCAO_MODULOS
 
     case $OPCAO_MODULOS in
         1)
             echo -e "${CYAN}Instalando módulos com npm...${NC}"
-            cd "$AMBIENTE_PATH" && npm install
+            cd "$AMBIENTE_PATH" && npm install > /dev/null 2>&1
             if [ $? -eq 0 ]; then
-                echo -e "${GREEN}Módulos instalados com sucesso!${NC}"
+                echo -e "${GREEN}✅ Módulos instalados com sucesso!${NC}"
             else
-                echo -e "${RED}Erro ao instalar módulos com npm.${NC}"
+                echo -e "${RED}❌ Erro ao instalar módulos com npm. Verifique o arquivo package.json.${NC}"
             fi
-            pos_clone_menu "$AMBIENTE_PATH"
             ;;
         2)
             echo -e "${CYAN}Instalando módulos com yarn...${NC}"
-            cd "$AMBIENTE_PATH" && yarn install
+            cd "$AMBIENTE_PATH" && yarn install > /dev/null 2>&1
             if [ $? -eq 0 ]; then
-                echo -e "${GREEN}Módulos instalados com sucesso!${NC}"
+                echo -e "${GREEN}✅ Módulos instalados com sucesso!${NC}"
             else
-                echo -e "${RED}Erro ao instalar módulos com yarn.${NC}"
+                echo -e "${RED}❌ Erro ao instalar módulos com yarn. Verifique o arquivo package.json.${NC}"
             fi
-            pos_clone_menu "$AMBIENTE_PATH"
             ;;
         0)
-            menu_principal
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
             ;;
         *)
-            echo -e "${RED}Opção inválida.${NC}"
+            echo -e "${RED}❌ Opção inválida. Tente novamente.${NC}"
             instalar_modulos "$AMBIENTE_PATH"
             ;;
     esac
+
+    # Redireciona ao menu do ambiente após a operação
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
 }
 
 # ###########################################
 # Função para iniciar o bot
 # - Propósito: Inicia o bot com base nas configurações do ambiente.
-# - Editar:
-#   * Ajustar mensagens, se necessário.
-#   * Mantenha a lógica principal inalterada para evitar conflitos.
 # ###########################################
 iniciar_bot() {
     AMBIENTE_PATH=$1
-    if [ -f "${AMBIENTE_PATH}/.session" ]; then
-        STATUS=$(recuperar_status "$AMBIENTE_PATH")
-        if [ "$STATUS" = "OFF" ]; then
-            echo -e "${YELLOW}Sessão existente com status OFF.${NC}"
-            echo -e "${YELLOW}1 - Reiniciar o bot${NC}"
-            echo -e "${RED}0 - Voltar${NC}"
-            read -p "> " OPCAO_EXISTENTE
-            case $OPCAO_EXISTENTE in
-                1)
-                    COMANDO=$(cat "${AMBIENTE_PATH}/.session")
-                    nohup sh -c "cd $AMBIENTE_PATH && $COMANDO" > "${AMBIENTE_PATH}/nohup.out" 2>&1 &
-                    clear
-                    atualizar_status "$AMBIENTE_PATH" "ON"
-                    echo -e "${GREEN}Bot reiniciado com sucesso!${NC}"
-                    menu_principal
-                    ;;
-                0)
-                    menu_principal
-                    ;;
-                *)
-                    echo -e "${RED}Opção inválida.${NC}"
-                    iniciar_bot "$AMBIENTE_PATH"
-                    ;;
-            esac
-        elif [ "$STATUS" = "ON" ]; then
-            echo -e "${RED}Já existe uma sessão ativa neste ambiente.${NC}"
-            echo -e "${RED}Por favor, finalize a sessão atual antes de iniciar outra.${NC}"
-            echo -e "${YELLOW}0 - Voltar${NC}"
-            read -p "> " OPCAO
-            [ "$OPCAO" = "0" ] && menu_principal
-        fi
-    else
-        echo -e "${CYAN}Escolha como deseja iniciar o bot:${NC}"
-        echo -e "${YELLOW}1 - npm start${NC}"
-        echo -e "${YELLOW}2 - Especificar arquivo (ex: index.js ou start.sh)${NC}"
-        echo -e "${YELLOW}3 - Instalar módulos e executar o bot${NC}"
-        echo -e "${RED}0 - Voltar${NC}"
-        read -p "> " INICIAR_OPCAO
 
-        case $INICIAR_OPCAO in
-            1)
-                echo "npm start" > "${AMBIENTE_PATH}/.session"
-                clear
-                echo -e "${YELLOW}Reinice o servidor assim que terminar para dar efeito${NC}"
-                atualizar_status "$AMBIENTE_PATH" "ON"
-                while true; do
-                    cd "$AMBIENTE_PATH" && npm start
-                    echo -e "${YELLOW}1 - Reiniciar o bot${NC}"
-                    echo -e "${YELLOW}2 - Salvar e voltar ao menu principal${NC}"
-                    echo -e "${RED}0 - Voltar${NC}"
-                    read -p "> " OPC_REINICIAR
-                    case $OPC_REINICIAR in
-                        1)
-                            echo -e "${CYAN}Reiniciando o processo...${NC}"
-                            ;;
-                        2)
-                            echo -e "${GREEN}Salvando e voltando ao menu principal...${NC}"
-                            menu_principal
-                            ;;
-                        0)
-                            menu_principal
-                            ;;
-                        *)
-                            echo -e "${RED}Opção inválida.${NC}"
-                            ;;
-                    esac
-                done
-                ;;
-            2)
-                echo -e "${YELLOW}Digite o nome do arquivo para executar:${NC}"
-                read ARQUIVO
-                if [[ $ARQUIVO == *.sh ]]; then
-                    echo "sh $ARQUIVO" > "${AMBIENTE_PATH}/.session"
+    # Exibe as opções de inicialização
+    echo -e "${CYAN}Escolha como deseja iniciar o bot:${NC}"
+    echo -e "${GREEN}1 - Inicialização padrão - npm start${NC}"
+    echo -e "${GREEN}2 - Especificar arquivo (ex: index.js ou start.sh)${NC}"
+    echo -e "${GREEN}3 - Instalar módulos e executar o bot${NC}"
+    echo -e "${GREEN}4 - Instalar módulos específicos e executar o bot${NC}"
+    echo -e "${YELLOW}5 - Ativar bot em segundo plano (background)${NC}"
+    echo -e "${RED}0 - Voltar${NC}"
+    read -p "> " INICIAR_OPCAO
+
+    case $INICIAR_OPCAO in
+        1)
+            COMANDO="npm start"
+            ;;
+        2)
+            echo -e "${YELLOW}Digite o nome do arquivo para executar:${NC}"
+            read ARQUIVO
+            if [[ $ARQUIVO == *.sh ]]; then
+                COMANDO="sh $ARQUIVO"
+            else
+                COMANDO="node $ARQUIVO"
+            fi
+            ;;
+        3)
+            verificar_node_modules "$AMBIENTE_PATH"
+            COMANDO="npm start"
+            ;;
+        4)
+            instalar_modulos_especificos "$AMBIENTE_PATH"
+            COMANDO="npm start"
+            ;;
+        5)
+            echo -e "${YELLOW}Ativando bot em segundo plano...${NC}"
+            COMANDO="npm start"
+            nohup sh -c "cd $AMBIENTE_PATH && $COMANDO" > "${AMBIENTE_PATH}/nohup.out" 2>&1 &
+            echo "$COMANDO" > "${AMBIENTE_PATH}/.session"
+            atualizar_status "$AMBIENTE_PATH" "ON"
+            echo -e "${GREEN}Bot ativado em segundo plano com sucesso!${NC}"
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+            return
+            ;;
+        0)
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+            return
+            ;;
+        *)
+            echo -e "${RED}Opção inválida.${NC}"
+            iniciar_bot "$AMBIENTE_PATH"
+            return
+            ;;
+    esac
+
+    # Executa o bot em primeiro plano para permitir interação inicial
+    echo -e "${CYAN}Iniciando o bot... Aguarde o QR Code ou outras instruções.${NC}"
+    cd "$AMBIENTE_PATH" || return
+    eval "$COMANDO"  # Executa o bot em primeiro plano
+
+    # Após a execução do bot, retorna ao menu principal
+    echo -e "${YELLOW}Pressione Enter para voltar ao menu principal...${NC}"
+    read
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+}
+# ###########################################
+# Função para instalar módulos específicos
+# - Propósito: Permite ao usuário instalar pacotes personalizados separados por vírgula.
+# ###########################################
+instalar_modulos_especificos() {
+    AMBIENTE_PATH=$1
+
+    echo -e "${CYAN}======================================${NC}"
+    anima_texto "INSTALAR MÓDULOS ESPECÍFICOS"
+    echo -e "${CYAN}======================================${NC}"
+
+    echo -e "${YELLOW}Escolha o gerenciador de pacotes:${NC}"
+    echo -e "${GREEN}1 - npm${NC}"
+    echo -e "${GREEN}2 - yarn${NC}"
+    echo -e "${RED}0 - Voltar${NC}"
+    read -p "> " GERENCIADOR
+
+    case $GERENCIADOR in
+        1)
+            GERENCIADOR_CMD="npm install"
+            ;;
+        2)
+            GERENCIADOR_CMD="yarn add"
+            ;;
+        0)
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+            return
+            ;;
+        *)
+            echo -e "${RED}❌ Opção inválida.${NC}"
+            instalar_modulos_especificos "$AMBIENTE_PATH"
+            return
+            ;;
+    esac
+
+    echo -e "${YELLOW}Digite os pacotes que deseja instalar (separados por vírgula):${NC}"
+    echo -e "${CYAN}Exemplo: express,lodash${NC}"
+    read PACOTES
+
+    # Converte os pacotes em um array
+    IFS=',' read -ra PACOTES_ARRAY <<< "$PACOTES"
+
+    echo -e "${CYAN}Verificando pacotes antes da instalação...${NC}"
+    PACOTES_INVALIDOS=()
+    for PACOTE in "${PACOTES_ARRAY[@]}"; do
+        PACOTE=$(echo "$PACOTE" | xargs)  # Remove espaços extras
+        if ! npm show "$PACOTE" > /dev/null 2>&1; then
+            PACOTES_INVALIDOS+=("$PACOTE")
+        fi
+    done
+
+    if [ ${#PACOTES_INVALIDOS[@]} -gt 0 ]; then
+        echo -e "${RED}⚠️ Os seguintes pacotes não foram encontrados ou são inválidos:${NC}"
+        for PACOTE in "${PACOTES_INVALIDOS[@]}"; do
+            echo -e "${RED}- $PACOTE${NC}"
+        done
+        echo -e "${YELLOW}Deseja continuar a instalação mesmo assim? (sim/não)${NC}"
+        read -p "> " CONTINUAR
+        if [ "$CONTINUAR" != "sim" ]; then
+            echo -e "${RED}Instalação cancelada.${NC}"
+            gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+            return
+        fi
+    fi
+
+    echo -e "${CYAN}Instalando pacotes...${NC}"
+    cd "$AMBIENTE_PATH" || return
+    for PACOTE in "${PACOTES_ARRAY[@]}"; do
+        PACOTE=$(echo "$PACOTE" | xargs)  # Remove espaços extras
+        echo -e "${CYAN}Instalando $PACOTE...${NC}"
+        if $GERENCIADOR_CMD "$PACOTE" > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ $PACOTE instalado com sucesso!${NC}"
+        else
+            echo -e "${RED}❌ Erro ao instalar $PACOTE.${NC}"
+            echo -e "${YELLOW}Deseja forçar a instalação usando --force? (sim/não)${NC}"
+            read -p "> " FORCAR
+            if [ "$FORCAR" = "sim" ]; then
+                echo -e "${CYAN}Forçando a instalação de $PACOTE...${NC}"
+                if $GERENCIADOR_CMD "$PACOTE" --force > /dev/null 2>&1; then
+                    echo -e "${GREEN}✅ $PACOTE instalado com sucesso usando --force.${NC}"
                 else
-                    echo "node $ARQUIVO" > "${AMBIENTE_PATH}/.session"
+                    echo -e "${RED}❌ Falha ao forçar a instalação de $PACOTE.${NC}"
                 fi
-                clear
-                echo -e "${YELLOW}Reinice o servidor assim que terminar para dar efeito${NC}"
-                atualizar_status "$AMBIENTE_PATH" "ON"
-                while true; do
-                    if [[ $ARQUIVO == *.sh ]]; then
-                        cd "$AMBIENTE_PATH" && sh "$ARQUIVO"
-                    else
-                        cd "$AMBIENTE_PATH" && node "$ARQUIVO"
-                    fi
-                    echo -e "${YELLOW}1 - Reiniciar o bot${NC}"
-                    echo -e "${YELLOW}2 - Salvar e voltar ao menu principal${NC}"
-                    echo -e "${RED}0 - Voltar${NC}"
-                    read -p "> " OPC_REINICIAR
-                    case $OPC_REINICIAR in
-                        1)
-                            echo -e "${CYAN}Reiniciando o processo...${NC}"
-                            ;;
-                        2)
-                            echo -e "${GREEN}Salvando e voltando ao menu principal...${NC}"
-                            menu_principal
-                            ;;
-                        0)
-                            menu_principal
-                            ;;
-                        *)
-                            echo -e "${RED}Opção inválida.${NC}"
-                            ;;
-                    esac
-                done
-                ;;
-            3)
-                verificar_node_modules "$AMBIENTE_PATH"
-                if [ $? -eq 0 ]; then
-                    echo "npm start" > "${AMBIENTE_PATH}/.session"
-                    cd "$AMBIENTE_PATH" && npm start
-                else
-                    echo -e "${RED}Erro ao instalar módulos. Retornando ao menu...${NC}"
-                    pos_clone_menu "$AMBIENTE_PATH"
-                fi
-                ;;
-            0)
-                menu_principal
-                ;;
-            *)
-                echo -e "${RED}Opção inválida.${NC}"
-                iniciar_bot "$AMBIENTE_PATH"
-                ;;
-        esac
+            fi
+        fi
+    done
+
+    echo -e "${YELLOW}Deseja voltar ao menu do ambiente? (sim/não)${NC}"
+    read -p "> " VOLTAR
+    if [ "$VOLTAR" = "sim" ]; then
+        gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+    else
+        instalar_modulos_especificos "$AMBIENTE_PATH"
     fi
 }
-
-
 # ###########################################
 # Função para parar o bot
 # - Propósito: Finaliza o processo do bot em execução em segundo plano.
-# - Editar:
-#   * Ajustar mensagens exibidas, se necessário.
-#   * A lógica de finalização do processo e atualização do status não deve ser alterada.
 # ###########################################
 parar_bot() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
     anima_texto "PARAR O BOT"
     echo -e "${CYAN}======================================${NC}"
+
+    # Verifica se há uma sessão ativa
     if [ -f "${AMBIENTE_PATH}/.session" ]; then
         COMANDO=$(cat "${AMBIENTE_PATH}/.session")
-        
+
         # Finaliza o processo do bot
+        echo -e "${YELLOW}Finalizando o processo do bot...${NC}"
         pkill -f "$COMANDO" 2>/dev/null
-        clear
+
+        # Remove os arquivos de sessão e logs
+        rm -f "${AMBIENTE_PATH}/.session"
+        rm -f "${AMBIENTE_PATH}/nohup.out"
+
+        # Atualiza o status para OFF
         atualizar_status "$AMBIENTE_PATH" "OFF"
+
         echo -e "${GREEN}Bot parado com sucesso.${NC}"
-        echo -e "${YELLOW}Reinice o servidor assim que terminar para dar efeito.${NC}"
-        exec /bin/bash
+        echo -e "${YELLOW}Você pode reiniciar o servidor quando necessário.${NC}"
     else
         echo -e "${RED}Nenhuma sessão ativa encontrada para parar.${NC}"
     fi
-    menu_principal
-}
 
+    # Retorna ao menu do ambiente
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+}
 # ###########################################
 # Função para reiniciar o bot
 # - Propósito: Reinicia o processo do bot com base nas configurações do ambiente.
-# - Editar:
-#   * Mensagens exibidas, se necessário.
-#   * A lógica principal deve permanecer inalterada para evitar conflitos.
 # ###########################################
 reiniciar_bot() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
     anima_texto "REINICIAR O BOT"
     echo -e "${CYAN}======================================${NC}"
+
+    # Verifica se há uma sessão ativa
     if [ -f "${AMBIENTE_PATH}/.session" ]; then
         COMANDO=$(cat "${AMBIENTE_PATH}/.session")
-        
-        # Finaliza o processo antigo e inicia um novo
-        pkill -f "$COMANDO" 2>/dev/null
-        cd "$AMBIENTE_PATH" && nohup $COMANDO > nohup.out 2>&1 &
-        clear
-        atualizar_status "$AMBIENTE_PATH" "ON"
-        echo -e "${GREEN}Bot reiniciado com sucesso.${NC}"
-    else
-        echo -e "${RED}Nenhuma sessão ativa encontrada para reiniciar.${NC}"
-    fi
-    menu_principal
-}
 
+        # Finaliza o processo antigo
+        echo -e "${YELLOW}Finalizando o processo antigo do bot...${NC}"
+        pkill -f "$COMANDO" 2>/dev/null
+
+        # Remove os arquivos de sessão e logs
+        rm -f "${AMBIENTE_PATH}/.session"
+        rm -f "${AMBIENTE_PATH}/nohup.out"
+
+        # Aguarda um momento para garantir que o processo foi encerrado
+        sleep 2
+    fi
+
+    # Inicia o novo processo
+    echo -e "${YELLOW}Iniciando o bot novamente...${NC}"
+    COMANDO="npm start"
+    cd "$AMBIENTE_PATH" || return
+    nohup sh -c "$COMANDO" > "${AMBIENTE_PATH}/nohup.out" 2>&1 &
+
+    # Salva o comando no arquivo .session
+    echo "$COMANDO" > "${AMBIENTE_PATH}/.session"
+
+    # Atualiza o status para ON
+    atualizar_status "$AMBIENTE_PATH" "ON"
+
+    echo -e "${GREEN}Bot reiniciado com sucesso.${NC}"
+    echo -e "${YELLOW}O bot está rodando em segundo plano.${NC}"
+
+    # Retorna ao menu do ambiente
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
+}
 # ###########################################
 # Função para visualizar o terminal
 # - Propósito: Permite visualizar os logs gerados pelo bot.
@@ -972,247 +1232,126 @@ reiniciar_bot() {
 # ###########################################
 ver_terminal() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
     anima_texto "VISUALIZAR O TERMINAL"
     echo -e "${CYAN}======================================${NC}"
+
+    # Verifica se há uma sessão ativa
+    if [ -f "${AMBIENTE_PATH}/.session" ]; then
+        COMANDO=$(cat "${AMBIENTE_PATH}/.session")
+        STATUS=$(recuperar_status "$AMBIENTE_PATH")
+
+        if [ "$STATUS" = "ON" ]; then
+            echo -e "${YELLOW}Uma sessão ativa foi encontrada. Finalizando a sessão antes de visualizar os logs...${NC}"
+            pkill -f "$COMANDO" 2>/dev/null
+            atualizar_status "$AMBIENTE_PATH" "OFF"
+            sleep 2
+        fi
+    fi
+
+    # Verifica se o arquivo de logs existe
     if [ -f "${AMBIENTE_PATH}/nohup.out" ]; then
         clear
-        echo -e "${YELLOW}Quando reiniciar o servidor você precisa acessar o AMBIENTE e iniciar o servidor novamente na opção 2.${NC}"
-        atualizar_status "$AMBIENTE_PATH" "OFF"
+        echo -e "${YELLOW}Visualizando os logs em tempo real. Pressione Ctrl+C para voltar ao menu.${NC}"
+        echo -e "${CYAN}======================================${NC}"
         tail -f "${AMBIENTE_PATH}/nohup.out"
+
+        # Após sair da visualização, retorna ao menu do ambiente
+        echo -e "${CYAN}Saindo da visualização de logs...${NC}"
+        gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
     else
         echo -e "${RED}Nenhuma saída encontrada para o terminal.${NC}"
+        gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
     fi
-    menu_principal
 }
 
 # ###########################################
 # Função para deletar a sessão
 # - Propósito: Remove o arquivo de sessão associado ao bot e finaliza o processo em execução.
-# - Editar:
-#   * Ajustar mensagens exibidas, se necessário.
-#   * A lógica de exclusão e finalização do processo deve ser mantida.
 # ###########################################
 deletar_sessao() {
     AMBIENTE_PATH=$1
+
     echo -e "${CYAN}======================================${NC}"
     anima_texto "DELETAR SESSÃO"
     echo -e "${CYAN}======================================${NC}"
+
+    # Verifica se há uma sessão ativa
     if [ -f "${AMBIENTE_PATH}/.session" ]; then
         COMANDO=$(cat "${AMBIENTE_PATH}/.session")
-        
-        # Finaliza o processo e remove o arquivo de sessão
+
+        # Finaliza o processo do bot
+        echo -e "${YELLOW}Finalizando o processo do bot...${NC}"
         pkill -f "$COMANDO" 2>/dev/null
+
+        # Remove os arquivos de sessão e logs
         rm -f "${AMBIENTE_PATH}/.session"
-        clear
+        rm -f "${AMBIENTE_PATH}/nohup.out"
+
+        # Atualiza o status para OFF
         atualizar_status "$AMBIENTE_PATH" "OFF"
-        echo -e "${GREEN}Sessão deletada com sucesso. Por favor, reinicie seu servidor para dar efeito.${NC}"
-        exec /bin/bash
+
+        echo -e "${GREEN}Sessão deletada com sucesso.${NC}"
+        echo -e "${YELLOW}Por favor, reinicie seu servidor para dar efeito.${NC}"
     else
         echo -e "${RED}Nenhuma sessão ativa encontrada para deletar.${NC}"
     fi
-    menu_principal
-}
-# ===========================================
-# CONFIGURAÇÕES GERAIS
-# ===========================================
-EXTENSION_DIR="/home/container/extensions"
-API_DIR="${EXTENSION_DIR}/api"
-REPO_URL="https://github.com/seu-usuario/seu-repositorio.git"
 
-# ===========================================
-# Função: Criar Pastas para Extensões e API
-# ===========================================
-criar_pastas_extensoes() {
-    echo -e "${CYAN}Verificando pastas para extensões...${NC}"
-    if [ ! -d "$EXTENSION_DIR" ]; then
-        mkdir -p "$EXTENSION_DIR"
-        echo -e "${GREEN}Pasta principal de extensões criada: $EXTENSION_DIR${NC}"
-    fi
-
-    if [ ! -d "$API_DIR" ]; then
-        mkdir -p "$API_DIR"
-        echo -e "${GREEN}Pasta para a API criada: $API_DIR${NC}"
-    else
-        echo -e "${YELLOW}Pasta da API já existe: $API_DIR${NC}"
-    fi
-}
-
-# ===========================================
-# Função: Instalar a API
-# ===========================================
-instalar_api() {
-    echo -e "${CYAN}Iniciando a instalação da API...${NC}"
-
-    if [ -d "$API_DIR" ]; then
-        echo -e "${YELLOW}A API já foi instalada. Deseja reinstalar? (sim/não)${NC}"
-        read -p "> " RESPOSTA
-        if [ "$RESPOSTA" != "sim" ]; then
-            echo -e "${RED}Instalação cancelada.${NC}"
-            return
-        fi
-        rm -rf "$API_DIR"
-        mkdir -p "$API_DIR"
-    fi
-
-    echo -e "${CYAN}Clonando repositório da API...${NC}"
-    git clone "$REPO_URL" "$API_DIR" || {
-        echo -e "${RED}Erro ao clonar o repositório. Verifique a URL e tente novamente.${NC}"
-        return
-    }
-
-    echo -e "${CYAN}Instalando dependências da API...${NC}"
-    cd "$API_DIR" || return
-    npm install || {
-        echo -e "${RED}Erro ao instalar as dependências da API.${NC}"
-        return
-    }
-
-    echo -e "${GREEN}API instalada com sucesso em: $API_DIR${NC}"
-}
-
-# ===========================================
-# Função: Configurar a API
-# ===========================================
-configurar_api() {
-    CONFIG_FILE="${API_DIR}/config.json"
-
-    echo -e "${CYAN}Configurando a API...${NC}"
-    if [ ! -d "$API_DIR" ]; then
-        echo -e "${RED}A API não está instalada. Execute o comando de instalação primeiro.${NC}"
-        return
-    fi
-
-    echo -e "${YELLOW}Digite o host da API (exemplo: 0.0.0.0):${NC}"
-    read -p "> " HOST
-    echo -e "${YELLOW}Digite a porta da API (exemplo: 3000):${NC}"
-    read -p "> " PORT
-    echo -e "${YELLOW}Digite o nome do usuário:${NC}"
-    read -p "> " USUARIO
-    echo -e "${YELLOW}Digite a senha:${NC}"
-    read -s -p "> " SENHA
-
-    echo -e "${CYAN}Salvando configurações...${NC}"
-    cat >"$CONFIG_FILE" <<EOL
-{
-    "host": "$HOST",
-    "port": "$PORT",
-    "user": "$USUARIO",
-    "password": "$SENHA"
-}
-EOL
-
-    echo -e "${GREEN}Configuração concluída. Arquivo salvo em: $CONFIG_FILE${NC}"
-}
-
-# ===========================================
-# Função: Iniciar a API
-# ===========================================
-iniciar_api() {
-    CONFIG_FILE="${API_DIR}/config.json"
-
-    if [ ! -d "$API_DIR" ] || [ ! -f "$CONFIG_FILE" ]; then
-        echo -e "${RED}A API não está instalada ou configurada. Verifique os passos anteriores.${NC}"
-        return
-    fi
-
-    echo -e "${CYAN}Iniciando a API em segundo plano...${NC}"
-    cd "$API_DIR" || return
-    nohup npm start >"${API_DIR}/api.log" 2>&1 &
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}API iniciada com sucesso! Logs em: ${API_DIR}/api.log${NC}"
-    else
-        echo -e "${RED}Erro ao iniciar a API.${NC}"
-    fi
-}
-
-# ===========================================
-# Função: Status da API
-# ===========================================
-status_api() {
-    CONFIG_FILE="${API_DIR}/config.json"
-
-    if [ ! -d "$API_DIR" ]; then
-        echo -e "${RED}A API não está instalada.${NC}"
-        return
-    fi
-
-    PID=$(pgrep -f "npm start")
-    if [ -n "$PID" ]; then
-        echo -e "${GREEN}API está em execução. PID: $PID${NC}"
-    else
-        echo -e "${RED}API não está em execução.${NC}"
-    fi
-
-    if [ -f "$CONFIG_FILE" ]; then
-        echo -e "${CYAN}Configurações da API:${NC}"
-        cat "$CONFIG_FILE"
-    else
-        echo -e "${RED}Configuração da API não encontrada.${NC}"
-    fi
-}
-
-# ===========================================
-# Função: Parar a API
-# ===========================================
-parar_api() {
-    PID=$(pgrep -f "npm start")
-    if [ -n "$PID" ]; then
-        echo -e "${CYAN}Parando a API...${NC}"
-        kill "$PID"
-        echo -e "${GREEN}API parada com sucesso.${NC}"
-    else
-        echo -e "${RED}A API não está em execução.${NC}"
-    fi
-}
-
-# ===========================================
-# Menu: Gerenciamento da API
-# ===========================================
-menu_api() {
-    echo -e "${CYAN}======================================${NC}"
-    anima_texto "       GERENCIAMENTO DA API"
-    echo -e "${CYAN}======================================${NC}"
-    echo -e "${YELLOW}1 - Criar Pastas${NC}"
-    echo -e "${YELLOW}2 - Instalar API${NC}"
-    echo -e "${YELLOW}3 - Configurar API${NC}"
-    echo -e "${YELLOW}4 - Iniciar API${NC}"
-    echo -e "${YELLOW}5 - Verificar Status${NC}"
-    echo -e "${YELLOW}6 - Parar API${NC}"
-    echo -e "${RED}0 - Voltar${NC}"
-    read -p "> " OPCAO_API
-
-    case $OPCAO_API in
-        1) criar_pastas_extensoes ;;
-        2) instalar_api ;;
-        3) configurar_api ;;
-        4) iniciar_api ;;
-        5) status_api ;;
-        6) parar_api ;;
-        0) menu_principal ;;
-        *) echo -e "${RED}Opção inválida.${NC}" ;;
-    esac
+    # Retorna ao menu do ambiente
+    gerenciar_ambiente "$(basename "$AMBIENTE_PATH" | sed 's/ambiente//')"
 }
 
 # ###########################################
 # Função para gerenciar ambiente
 # - Propósito: Fornece um menu interativo para gerenciar um ambiente específico.
-# - Editar:
-#   * Mensagens exibidas para o usuário podem ser personalizadas.
-#   * Não altere as chamadas de funções ou lógica principal do menu.
 # ###########################################
 gerenciar_ambiente() {
     # Define o caminho do ambiente com base no índice
     AMBIENTE_PATH="${BASE_DIR}/ambiente$1"
 
+    # Recupera o status do ambiente
+    STATUS=$(recuperar_status "$AMBIENTE_PATH")
+
+    # Define o indicador visual de status (círculo colorido)
+    if [ "$STATUS" = "ON" ]; then
+        INDICADOR_STATUS="${GREEN}●${NC}"
+    else
+        INDICADOR_STATUS="${RED}●${NC}"
+    fi
+
+    # Verifica se os arquivos /proc estão disponíveis
+    if [ -f "/proc/stat" ] && [ -f "/proc/meminfo" ]; then
+        # Calcula o uso de CPU
+        CPU_INFO=$(grep '^cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {printf "%.0f%%", usage}')
+
+        # Calcula o uso de RAM
+        MEM_TOTAL=$(grep 'MemTotal' /proc/meminfo | awk '{print $2}')
+        MEM_FREE=$(grep 'MemFree' /proc/meminfo | awk '{print $2}')
+        MEM_USED=$((MEM_TOTAL - MEM_FREE))
+        MEM_USAGE=$((MEM_USED * 100 / MEM_TOTAL))  # Uso de RAM em porcentagem
+        MEM_USED_MB=$((MEM_USED / 1024))           # Converte KB para MB
+        RAM_INFO="${MEM_USAGE}% (${MEM_USED_MB} MB)"
+    else
+        # Define valores padrão se /proc não estiver disponível
+        CPU_INFO="N/A"
+        RAM_INFO="N/A"
+        echo -e "${YELLOW}AVISO: Os arquivos /proc não estão disponíveis neste sistema.${NC}"
+        echo -e "${YELLOW}Uso de CPU e RAM não pode ser calculado.${NC}"
+    fi
+
     # Cabeçalho do menu
     echo -e "${CYAN}======================================${NC}"
-    anima_texto "GERENCIANDO AMBIENTE $1"
+    echo -e "${CYAN}GERENCIANDO AMBIENTE $1${NC}"
     echo -e "${CYAN}======================================${NC}"
+    echo -e "${YELLOW}Status do Ambiente: ${INDICADOR_STATUS} (${STATUS})${NC}"
+    echo -e "${YELLOW}Uso de CPU: ${CYAN}${CPU_INFO}${NC}"
+    echo -e "${YELLOW}Uso de RAM: ${CYAN}${RAM_INFO}${NC}"
+    echo -e "${CYAN}--------------------------------------${NC}"
 
     # Opções do menu
     echo -e "${YELLOW}1 - ESCOLHER BOT PRONTO DA VORTEXUS${NC}"
-    echo -e "${YELLOW}2 - INICIAR O BOT${NC}"
+    echo -e "${YELLOW}2 - INICIAR O BOT ${INDICADOR_STATUS}${NC}"
     echo -e "${YELLOW}3 - PARAR O BOT${NC}"
     echo -e "${YELLOW}4 - REINICIAR O BOT${NC}"
     echo -e "${YELLOW}5 - VISUALIZAR O TERMINAL${NC}"
